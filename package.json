@@ -5,6 +5,7 @@
   "scripts": {
     "migrate": "truffle migrate --network bscTestnet --reset",
     "compile": "truffle compile --network bscTestnet",
+    "deploy" : "truffle deploy --network bscTestnet --reset",
     "test": "npx builder test",
     "coverage": "npx builder coverage"
   },
