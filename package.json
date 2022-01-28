@@ -6,6 +6,7 @@
     "migrate": "truffle migrate --network bscTestnet --reset",
     "compile": "truffle compile --network bscTestnet",
     "deploy" : "truffle deploy --network bscTestnet --reset",
+    "verify" : "truffle run verify --network bscTestnet",
     "test": "npx builder test",
     "coverage": "npx builder coverage"
   },
@@ -26,7 +27,7 @@
     "ethers": "^5.0.14",
     "solidity-coverage": "^0.7.13",
     "truffle-hdwallet-provider": "^1.0.17",
-    "truffle-plugin-verify": "^0.4.0",
+    "truffle-plugin-verify": "^0.5.4",
     "web3": "^1.3.0"
   }
 }

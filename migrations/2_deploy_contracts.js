@@ -12,7 +12,7 @@ module.exports = async function (deployer, network, accounts) {
     const SyrupBarAddr = await SyrupBar.deployed();
     console.log("SyrupBar: ", SyrupBarAddr.address);
 
-    const cakePerBlock=40000000000000000000;
+    const cakePerBlock=40;
     const startBlock=703820;
     const devAddr="0x9892657D3A386661AF2fA989AE10b6916d43b93F";
     await deployer.deploy(MasterChef, CakeTokenAddr.address, SyrupBarAddr.address, devAddr, cakePerBlock, startBlock);
