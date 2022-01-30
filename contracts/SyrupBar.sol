@@ -1,11 +1,15 @@
-pragma solidity 0.6.12;
+//SPDX-License-Identifier: MIT
+pragma solidity 0.8.11;
 
 import "@pancakeswap/pancake-swap-lib/contracts/token/BEP20/BEP20.sol";
 
-import "./CakeToken.sol";
-
+interface PeaceToken {
+    function transfer(address to, uint256 value) external returns (bool);
+    function transferFrom(address from, address to, uint256 value) external returns (bool);
+    function mint(address account, uint256 amount) external;
+}
 // SyrupBar with Governance.
-contract SyrupBar is BEP20('SyrupBarFrok Token', 'ForkSYRUP') {
+contract SyrupBar is BEP20('SyrupBar Token', 'FSYRUP') {
     /// @notice Creates `_amount` token to `_to`. Must only be called by the owner (MasterChef).
     function mint(address _to, uint256 _amount) public onlyOwner {
         _mint(_to, _amount);
@@ -18,22 +22,22 @@ contract SyrupBar is BEP20('SyrupBarFrok Token', 'ForkSYRUP') {
     }
 
     // The CAKE TOKEN!
-    CakeToken public cake;
+    PeaceToken public peace;
 
 
     constructor(
-        CakeToken _cake
+        PeaceToken _peace
     ) public {
-        cake = _cake;
+        peace = _peace;
     }
 
-    // Safe cake transfer function, just in case if rounding error causes pool to not have enough CAKEs.
+    // Safe peace transfer function, just in case if rounding error causes pool to not have enough CAKEs.
     function safeCakeTransfer(address _to, uint256 _amount) public onlyOwner {
-        uint256 cakeBal = cake.balanceOf(address(this));
-        if (_amount > cakeBal) {
-            cake.transfer(_to, cakeBal);
+        uint256 peaceBal = peace.balanceOf(address(this));
+        if (_amount > peaceBal) {
+            peace.transfer(_to, peaceBal);
         } else {
-            cake.transfer(_to, _amount);
+            peace.transfer(_to, _amount);
         }
     }
 
