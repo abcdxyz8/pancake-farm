@@ -10,7 +10,7 @@
 
 // XXX: pragma solidity ^0.5.16;
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.11;
+pragma solidity 0.6.12;
 
 // XXX: import "./SafeMath.sol";
 import "@pancakeswap/pancake-swap-lib/contracts/math/SafeMath.sol";

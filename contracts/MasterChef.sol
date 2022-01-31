@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.11;
+pragma solidity 0.6.12;
 
 import '@pancakeswap/pancake-swap-lib/contracts/math/SafeMath.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/IBEP20.sol';
@@ -57,12 +57,11 @@ contract MasterChef is Ownable {
     struct PoolInfo {
         IBEP20 lpToken;           // Address of LP token contract.
         uint256 monthlyRewardPercent;       // How many allocation points assigned to this pool. PEACEs to distribute per block.
-        // uint256 lastRewardBlock;  // Last block number that PEACEs distribution occurs.
-        // uint256 accPeacePerShare; // Accumulated PEACEs per share, times 1e12. See below.
+       
     }
 
     // The PEACE TOKEN!
-    PeaceToken public peace;
+    // PeaceToken public peace;
     // The SYRUP TOKEN!
     // SyrupBar public syrup;
     // Dev address.
@@ -80,22 +79,22 @@ contract MasterChef is Ownable {
     // Info of each user that stakes LP tokens.
     mapping (uint256 => mapping (address => UserInfo)) public userInfo;
     // Total allocation points. Must be the sum of all allocation points in all pools.
-    // uint256 public totalAllocPoint = 0;
+    uint256 public totalAllocPoint = 0;
     // The block number when PEACE mining starts.
-    // uint256 public startBlock;
+    uint256 public startBlock;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
 
     constructor(
-        PeaceToken _peace,
+        address _peace,
         // SyrupBar _syrup,
         address _devaddr,
         address _rewardaddr
         // uint256 _startBlock
     ) public {
-        peace = _peace;
+        // peace = _peace;
         // syrup = _syrup;
         devaddr = _devaddr;
         rewardaddr = _rewardaddr;
@@ -126,45 +125,13 @@ contract MasterChef is Ownable {
 
     // Add a new lp to the pool. Can only be called by the owner.
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-    function add(uint256 _allocPoint, IBEP20 _lpToken, bool _withUpdate) public onlyOwner {
-        if (_withUpdate) {
-            massUpdatePools();
-        }
-        uint256 lastRewardBlock = block.number > startBlock ? block.number : startBlock;
-        totalAllocPoint = totalAllocPoint.add(_allocPoint);
+    function add(IBEP20 _lpToken, uint256 _monthlyRewardPercent) public onlyOwner {
+
         poolInfo.push(PoolInfo({
             lpToken: _lpToken,
-            allocPoint: _allocPoint,
-            lastRewardBlock: lastRewardBlock,
-            accPeacePerShare: 0
+            monthlyRewardPercent: _monthlyRewardPercent
         }));
-        updateStakingPool();
-    }
 
-    // Update the given pool's PEACE allocation point. Can only be called by the owner.
-    function set(uint256 _pid, uint256 _allocPoint, bool _withUpdate) public onlyOwner {
-        if (_withUpdate) {
-            massUpdatePools();
-        }
-        uint256 prevAllocPoint = poolInfo[_pid].allocPoint;
-        poolInfo[_pid].allocPoint = _allocPoint;
-        if (prevAllocPoint != _allocPoint) {
-            totalAllocPoint = totalAllocPoint.sub(prevAllocPoint).add(_allocPoint);
-            updateStakingPool();
-        }
-    }
-
-    function updateStakingPool() internal {
-        uint256 length = poolInfo.length;
-        uint256 points = 0;
-        for (uint256 pid = 1; pid < length; ++pid) {
-            points = points.add(poolInfo[pid].allocPoint);
-        }
-        if (points != 0) {
-            points = points.div(3);
-            totalAllocPoint = totalAllocPoint.sub(poolInfo[0].allocPoint).add(points);
-            poolInfo[0].allocPoint = points;
-        }
     }
 
     // Set the migrator contract. Can only be called by the owner.
@@ -190,7 +157,7 @@ contract MasterChef is Ownable {
     }
 
     // View function to see pending PEACEs on frontend.
-    function pendingPeace(uint256 _pid, address _user) external view returns (uint256) {
+    function pendingPeace(uint256 _pid, address _user) public view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         // uint256 accPeacePerShare = pool.accPeacePerShare;
@@ -204,33 +171,6 @@ contract MasterChef is Ownable {
         return user.amount.mul(multiplier).div(1e12).mul(pool.monthlyRewardPercent).div(100);
     }
 
-    // Update reward variables for all pools. Be careful of gas spending!
-    function massUpdatePools() public {
-        uint256 length = poolInfo.length;
-        for (uint256 pid = 0; pid < length; ++pid) {
-            updatePool(pid);
-        }
-    }
-
-
-    // Update reward variables of the given pool to be up-to-date.
-    function updatePool(uint256 _pid) public {
-        PoolInfo storage pool = poolInfo[_pid];
-        if (block.number <= pool.lastRewardBlock) {
-            return;
-        }
-        uint256 lpSupply = pool.lpToken.balanceOf(address(this));
-        if (lpSupply == 0) {
-            pool.lastRewardBlock = block.number;
-            return;
-        }
-        uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-        uint256 peaceReward = multiplier.mul(peacePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-        peace.mint(devaddr, peaceReward.div(10));
-        peace.mint(address(syrup), peaceReward);
-        pool.accPeacePerShare = pool.accPeacePerShare.add(peaceReward.mul(1e12).div(lpSupply));
-        pool.lastRewardBlock = block.number;
-    }
 
     // Deposit LP tokens to MasterChef for PEACE allocation.
     function deposit(uint256 _pid, uint256 _amount) public {
@@ -239,12 +179,11 @@ contract MasterChef is Ownable {
 
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
-        updatePool(_pid);
         
         if (user.amount > 0) {
             uint256 pending = pendingPeace(_pid, user);
             if(pending > 0) {
-                pool.lpToken.safeTransferFrom(RewardAddress, msg.sender, pending);
+                pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
             }
         }
         if (_amount > 0) {
@@ -267,10 +206,9 @@ contract MasterChef is Ownable {
         require(user.amount >= _amount, "withdraw: not good");
         require( (block.timestamp-user.firstStakeTime) > 30 days, "in 30 days");
 
-        // updatePool(_pid);
         uint256 pending = pendingPeace(_pid, user);
         if(pending > 0) {
-            pool.lpToken.safeTransferFrom(RewardAddress, msg.sender, pending);
+            pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
         }
         if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
@@ -286,9 +224,9 @@ contract MasterChef is Ownable {
         UserInfo storage user = userInfo[0][msg.sender];
         // updatePool(0);
         if (user.amount > 0) {
-            uint256 pending = pendingPeace(_pid, user);
+            uint256 pending = pendingPeace(0, user);
             if(pending > 0) {
-                pool.lpToken.safeTransferFrom(RewardAddress, msg.sender, pending);
+                pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
             }
         }
         if(_amount > 0) {
@@ -312,7 +250,7 @@ contract MasterChef is Ownable {
         // updatePool(0);
         uint256 pending = pendingPeace(0, msg.sender);
         if(pending > 0) {
-             pool.lpToken.safeTransferFrom(RewardAddress, msg.sender, pending);
+             pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
         }
         if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
@@ -344,8 +282,8 @@ contract MasterChef is Ownable {
         require(msg.sender == devaddr, "devaddr: wut?");
         devaddr = _devaddr;
     }
-    function rewardaddr(address _rewardaddr) public {
+    function setRewardAddr(address _rewardaddr) public {
         require(msg.sender == rewardaddr, "rewardaddr: wut?");
-        devaddr = _devaddr;
+        rewardaddr = _rewardaddr;
     }
 }
