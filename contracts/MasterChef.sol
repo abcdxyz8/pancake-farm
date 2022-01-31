@@ -39,6 +39,7 @@ contract MasterChef is Ownable {
     struct UserInfo {
         uint256 amount;     // How many LP tokens the user has provided.
         uint256 stakeTime; // Reward debt. See explanation below.
+        uint256 firstStakeTime;
         //
         // We do some fancy math here. Basically, any point in time, the amount of PEACEs
         // entitled to a user but is pending to be distributed is:
@@ -185,7 +186,7 @@ contract MasterChef is Ownable {
 
     // Return reward multiplier over the given _from to _to block.
     function getMultiplier(uint256 _from, uint256 _to) public view returns (uint256) {
-        return _to.sub(_from).mul(1e12).mul(BONUS_MULTIPLIER).div(259200000);
+        return _to.sub(_from).mul(1e12).div(30 days);
     }
 
     // View function to see pending PEACEs on frontend.
@@ -200,7 +201,7 @@ contract MasterChef is Ownable {
         //     uint256 peaceReward = multiplier.mul(peacePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
         //     accPeacePerShare = accPeacePerShare.add(peaceReward.mul(1e12).div(lpSupply));
         // }
-        return user.amount.mul(multiplier).div(1e12);
+        return user.amount.mul(multiplier).div(1e12).mul(pool.monthlyRewardPercent).div(100);
     }
 
     // Update reward variables for all pools. Be careful of gas spending!
@@ -239,17 +240,21 @@ contract MasterChef is Ownable {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
+        
         if (user.amount > 0) {
-            uint256 pending = user.amount.mul(pool.accPeacePerShare).div(1e12).sub(user.stakeTime);
+            uint256 pending = pendingPeace(_pid, user);
             if(pending > 0) {
-                safePeaceTransfer(msg.sender, pending);
+                pool.lpToken.safeTransferFrom(RewardAddress, msg.sender, pending);
             }
         }
         if (_amount > 0) {
             pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
             user.amount = user.amount.add(_amount);
         }
-        user.stakeTime = user.amount.mul(pool.accPeacePerShare).div(1e12);
+        user.stakeTime = block.timestamp;
+        if (user.firstStakeTime==0){
+            user.firstStakeTime=block.timestamp;
+        }
         emit Deposit(msg.sender, _pid, _amount);
     }
 
@@ -260,17 +265,18 @@ contract MasterChef is Ownable {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
+        require( (block.timestamp-user.firstStakeTime) > 30 days, "in 30 days");
 
-        updatePool(_pid);
-        uint256 pending = user.amount.mul(pool.accPeacePerShare).div(1e12).sub(user.stakeTime);
+        // updatePool(_pid);
+        uint256 pending = pendingPeace(_pid, user);
         if(pending > 0) {
-            safePeaceTransfer(msg.sender, pending);
+            pool.lpToken.safeTransferFrom(RewardAddress, msg.sender, pending);
         }
         if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
         }
-        user.stakeTime = user.amount.mul(pool.accPeacePerShare).div(1e12);
+        user.stakeTime = block.timestamp;
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
@@ -278,9 +284,9 @@ contract MasterChef is Ownable {
     function enterStaking(uint256 _amount) public {
         PoolInfo storage pool = poolInfo[0];
         UserInfo storage user = userInfo[0][msg.sender];
-        updatePool(0);
+        // updatePool(0);
         if (user.amount > 0) {
-            uint256 pending = pendingPeace(0, msg.sender);
+            uint256 pending = pendingPeace(_pid, user);
             if(pending > 0) {
                 pool.lpToken.safeTransferFrom(RewardAddress, msg.sender, pending);
             }
@@ -290,8 +296,10 @@ contract MasterChef is Ownable {
             user.amount = user.amount.add(_amount);
         }
         user.stakeTime = block.timestamp;
-
-        syrup.mint(msg.sender, _amount);
+        if (user.firstStakeTime==0){
+            user.firstStakeTime=block.timestamp;
+        }
+        // syrup.mint(msg.sender, _amount);
         emit Deposit(msg.sender, 0, _amount);
     }
 
@@ -300,18 +308,19 @@ contract MasterChef is Ownable {
         PoolInfo storage pool = poolInfo[0];
         UserInfo storage user = userInfo[0][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
-        updatePool(0);
-        uint256 pending = user.amount.mul(pool.accPeacePerShare).div(1e12).sub(user.stakeTime);
+        require( (block.timestamp-user.firstStakeTime) > 30 days, "in 30 days");
+        // updatePool(0);
+        uint256 pending = pendingPeace(0, msg.sender);
         if(pending > 0) {
-            safePeaceTransfer(msg.sender, pending);
+             pool.lpToken.safeTransferFrom(RewardAddress, msg.sender, pending);
         }
         if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
         }
-        user.stakeTime = user.amount.mul(pool.accPeacePerShare).div(1e12);
+        user.stakeTime = block.timestamp;
 
-        syrup.burn(msg.sender, _amount);
+        // syrup.burn(msg.sender, _amount);
         emit Withdraw(msg.sender, 0, _amount);
     }
 
@@ -326,13 +335,17 @@ contract MasterChef is Ownable {
     }
 
     // Safe peace transfer function, just in case if rounding error causes pool to not have enough PEACEs.
-    function safePeaceTransfer(address _to, uint256 _amount) internal {
-        syrup.safePeaceTransfer(_to, _amount);
-    }
+    // function safePeaceTransfer(address _to, uint256 _amount) internal {
+    //     syrup.safePeaceTransfer(_to, _amount);
+    // }
 
     // Update dev address by the previous dev.
     function dev(address _devaddr) public {
-        require(msg.sender == devaddr, "dev: wut?");
+        require(msg.sender == devaddr, "devaddr: wut?");
+        devaddr = _devaddr;
+    }
+    function rewardaddr(address _rewardaddr) public {
+        require(msg.sender == rewardaddr, "rewardaddr: wut?");
         devaddr = _devaddr;
     }
 }
