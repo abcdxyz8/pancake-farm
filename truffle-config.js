@@ -20,7 +20,6 @@ module.exports = {
       network_id: 97,
       confirmations: 10,
       timeoutBlocks: 200,
-      skipDryRun: true,
       from: '0xB5F402fA52386bD88280c730C323BE178cc5c4b6'
     },
     bsc: {

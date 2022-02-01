@@ -54,7 +54,7 @@ contract LotteryRewardPool is Ownable {
     }
 
     function  pendingReward(uint256 _pid) external view returns (uint256) {
-        return chef.pendingCake(_pid, address(this));
+        return chef.pendingPeace(_pid, address(this));
     }
 
     // EMERGENCY ONLY.

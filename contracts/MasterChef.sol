@@ -89,7 +89,7 @@ contract MasterChef is Ownable {
             lpToken: PeaceToken,
             monthlyRewardPercent: 10,
             withdrawLockPeriod: 30 days,
-            balance: 0;  
+            balance: 0  
         }));
 
     }
@@ -147,7 +147,7 @@ contract MasterChef is Ownable {
     }
 
     // View function to see pending PEACEs on frontend.
-    function pendingPeace(uint256 _pid, address _user) public pure returns (uint256) {
+    function pendingPeace(uint256 _pid, address _user) public view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 multiplier = getMultiplier(user.stakeTime, block.timestamp);
@@ -179,7 +179,7 @@ contract MasterChef is Ownable {
         emit Deposit(msg.sender, _pid, _amount);
     }
 
-    function canHarvest(uint256 _pid, address _user) public pure returns (bool) {
+    function canHarvest(uint256 _pid, address _user) public view returns (bool) {
         UserInfo storage user = userInfo[_pid][_user];
         return (user.nextHarvestUntil > 0) && (block.timestamp >= user.nextHarvestUntil);
     }
@@ -222,7 +222,7 @@ contract MasterChef is Ownable {
         user.stakeTime = 0;
         user.nextHarvestUntil = 0;
         pool.balance.sub(user.amount);
-        emit Withdraw(msg.sender, _pid, _amount);
+        emit Withdraw(msg.sender, _pid, user.amount);
     }
 
     // Update dev address by the previous dev.

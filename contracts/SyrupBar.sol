@@ -7,6 +7,7 @@ interface PeaceToken {
     function transfer(address to, uint256 value) external returns (bool);
     function transferFrom(address from, address to, uint256 value) external returns (bool);
     function mint(address account, uint256 amount) external;
+    function balanceOf(address account) external returns (uint256);
 }
 // SyrupBar with Governance.
 contract SyrupBar is BEP20('SyrupBar Token', 'FSYRUP') {
@@ -47,7 +48,7 @@ contract SyrupBar is BEP20('SyrupBar Token', 'FSYRUP') {
     // Which is copied and modified from COMPOUND:
     // https://github.com/compound-finance/compound-protocol/blob/master/contracts/Governance/Comp.sol
 
-    /// @notice A record of each accounts delegate
+
     mapping (address => address) internal _delegates;
 
     /// @notice A checkpoint for marking number of votes from a given block
