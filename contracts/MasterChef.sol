@@ -6,10 +6,6 @@ import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/IBEP20.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/SafeBEP20.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/access/Ownable.sol';
 
-// import "./PeaceToken.sol";
-// import "./SyrupBar.sol";
-
-// import "@nomiclabs/buidler/console.sol";
 
 interface IMigratorChef {
     // Perform LP token migration from legacy PancakeSwap to PeaceSwap.
@@ -39,7 +35,7 @@ contract MasterChef is Ownable {
     struct UserInfo {
         uint256 amount;     // How many LP tokens the user has provided.
         uint256 stakeTime; // Reward debt. See explanation below.
-        uint256 firstStakeTime;
+        uint256 nextHarvestUntil; //stakeTime + pool.withdrawLockPeriod
         //
         // We do some fancy math here. Basically, any point in time, the amount of PEACEs
         // entitled to a user but is pending to be distributed is:
@@ -57,20 +53,15 @@ contract MasterChef is Ownable {
     struct PoolInfo {
         IBEP20 lpToken;           // Address of LP token contract.
         uint256 monthlyRewardPercent;       // How many allocation points assigned to this pool. PEACEs to distribute per block.
+        uint256 withdrawLockPeriod; // lock period for this pool
+        uint256 balance;            // pool token balance, allow multiple pools with same token
        
     }
 
-    // The PEACE TOKEN!
-    // PeaceToken public peace;
-    // The SYRUP TOKEN!
-    // SyrupBar public syrup;
-    // Dev address.
+    IBEP20 public PeaceToken;
     address public devaddr;
     address public rewardaddr;
-    // PEACE tokens created per block.
-    // uint256 public peacePerBlock;
-    // Bonus muliplier for early peace makers.
-    // uint256 public BONUS_MULTIPLIER = 10;
+   
     // The migrator contract. It has a lot of power. Can only be set through governance (owner).
     IMigratorChef public migrator;
 
@@ -78,10 +69,7 @@ contract MasterChef is Ownable {
     PoolInfo[] public poolInfo;
     // Info of each user that stakes LP tokens.
     mapping (uint256 => mapping (address => UserInfo)) public userInfo;
-    // Total allocation points. Must be the sum of all allocation points in all pools.
-    uint256 public totalAllocPoint = 0;
-    // The block number when PEACE mining starts.
-    uint256 public startBlock;
+    
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -89,34 +77,34 @@ contract MasterChef is Ownable {
 
     constructor(
         address _peace,
-        // SyrupBar _syrup,
         address _devaddr,
         address _rewardaddr
-        // uint256 _startBlock
     ) public {
-        // peace = _peace;
-        // syrup = _syrup;
+        PeaceToken = IBEP20(_peace);
         devaddr = _devaddr;
         rewardaddr = _rewardaddr;
-        // startBlock = _startBlock;
 
         // staking pool
         poolInfo.push(PoolInfo({
-            lpToken: _peace,
-            monthlyRewardPercent: 10
-            // lastRewardBlock: startBlock,
-            // accPeacePerShare: 0
+            lpToken: PeaceToken,
+            monthlyRewardPercent: 10,
+            withdrawLockPeriod: 30 days,
+            balance: 0;  
         }));
-
-        // totalAllocPoint = 1000;
 
     }
 
     function updatemonthlyRewardPercent(uint256 _pid, uint256 _monthlyRewardPercent) public onlyOwner {
         require(_monthlyRewardPercent>0, "monthlyRewardPercent set error");
-        require(_monthlyRewardPercent<20, "monthlyRewardPercent set error");
+        require(_monthlyRewardPercent<100, "monthlyRewardPercent set error");
         PoolInfo storage pool = poolInfo[_pid];
         pool.monthlyRewardPercent = _monthlyRewardPercent;
+    }
+
+    function updatewithdrawLockPeriod(uint256 _pid, uint256 _withdrawLockPeriod) public onlyOwner {
+        require(_withdrawLockPeriod>0, "withdrawLockPeriod set error");
+        PoolInfo storage pool = poolInfo[_pid];
+        pool.withdrawLockPeriod = _withdrawLockPeriod * 1 days;
     }
 
     function poolLength() external view returns (uint256) {
@@ -125,11 +113,13 @@ contract MasterChef is Ownable {
 
     // Add a new lp to the pool. Can only be called by the owner.
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-    function add(IBEP20 _lpToken, uint256 _monthlyRewardPercent) public onlyOwner {
+    function add(IBEP20 _lpToken, uint256 _monthlyRewardPercent, uint256 _withdrawLockPeriod) public onlyOwner {
 
         poolInfo.push(PoolInfo({
             lpToken: _lpToken,
-            monthlyRewardPercent: _monthlyRewardPercent
+            monthlyRewardPercent: _monthlyRewardPercent,
+            withdrawLockPeriod: _withdrawLockPeriod,
+            balance: 0
         }));
 
     }
@@ -152,22 +142,15 @@ contract MasterChef is Ownable {
     }
 
     // Return reward multiplier over the given _from to _to block.
-    function getMultiplier(uint256 _from, uint256 _to) public view returns (uint256) {
+    function getMultiplier(uint256 _from, uint256 _to) public pure returns (uint256) {
         return _to.sub(_from).mul(1e12).div(30 days);
     }
 
     // View function to see pending PEACEs on frontend.
-    function pendingPeace(uint256 _pid, address _user) public view returns (uint256) {
+    function pendingPeace(uint256 _pid, address _user) public pure returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
-        // uint256 accPeacePerShare = pool.accPeacePerShare;
-        // uint256 lpSupply = pool.lpToken.balanceOf(address(this));
         uint256 multiplier = getMultiplier(user.stakeTime, block.timestamp);
-        // if (lpSupply != 0) {
-        //     uint256 multiplier = getMultiplier(user.stakeTime, block.timestamp);
-        //     uint256 peaceReward = multiplier.mul(peacePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-        //     accPeacePerShare = accPeacePerShare.add(peaceReward.mul(1e12).div(lpSupply));
-        // }
         return user.amount.mul(multiplier).div(1e12).mul(pool.monthlyRewardPercent).div(100);
     }
 
@@ -175,13 +158,11 @@ contract MasterChef is Ownable {
     // Deposit LP tokens to MasterChef for PEACE allocation.
     function deposit(uint256 _pid, uint256 _amount) public {
 
-        require (_pid != 0, 'deposit PEACE by staking');
-
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         
         if (user.amount > 0) {
-            uint256 pending = pendingPeace(_pid, user);
+            uint256 pending = pendingPeace(_pid, msg.sender);
             if(pending > 0) {
                 pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
             }
@@ -189,77 +170,46 @@ contract MasterChef is Ownable {
         if (_amount > 0) {
             pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
             user.amount = user.amount.add(_amount);
+            user.stakeTime = block.timestamp;
+            user.nextHarvestUntil = user.stakeTime + pool.withdrawLockPeriod;
+            
+            pool.balance.add(_amount);
         }
-        user.stakeTime = block.timestamp;
-        if (user.firstStakeTime==0){
-            user.firstStakeTime=block.timestamp;
-        }
+        
         emit Deposit(msg.sender, _pid, _amount);
+    }
+
+    function canHarvest(uint256 _pid, address _user) public pure returns (bool) {
+        UserInfo storage user = userInfo[_pid][_user];
+        return (user.nextHarvestUntil > 0) && (block.timestamp >= user.nextHarvestUntil);
     }
 
     // Withdraw LP tokens from MasterChef.
     function withdraw(uint256 _pid, uint256 _amount) public {
 
-        require (_pid != 0, 'withdraw PEACE by unstaking');
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
-        require( (block.timestamp-user.firstStakeTime) > 30 days, "in 30 days");
+        require(user.nextHarvestUntil > 0, "not staked ");
+        require( block.timestamp >= user.nextHarvestUntil, "in lock period");
 
-        uint256 pending = pendingPeace(_pid, user);
+        uint256 pending = pendingPeace(_pid, msg.sender);
         if(pending > 0) {
             pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
         }
         if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
+            pool.balance.sub(_amount);
+
         }
-        user.stakeTime = block.timestamp;
+
+        if(user.amount == 0){
+            user.stakeTime = 0;
+            user.nextHarvestUntil = 0;
+        }
+        
         emit Withdraw(msg.sender, _pid, _amount);
-    }
-
-    // Stake PEACE tokens to MasterChef
-    function enterStaking(uint256 _amount) public {
-        PoolInfo storage pool = poolInfo[0];
-        UserInfo storage user = userInfo[0][msg.sender];
-        // updatePool(0);
-        if (user.amount > 0) {
-            uint256 pending = pendingPeace(0, user);
-            if(pending > 0) {
-                pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
-            }
-        }
-        if(_amount > 0) {
-            pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
-            user.amount = user.amount.add(_amount);
-        }
-        user.stakeTime = block.timestamp;
-        if (user.firstStakeTime==0){
-            user.firstStakeTime=block.timestamp;
-        }
-        // syrup.mint(msg.sender, _amount);
-        emit Deposit(msg.sender, 0, _amount);
-    }
-
-    // Withdraw PEACE tokens from STAKING.
-    function leaveStaking(uint256 _amount) public {
-        PoolInfo storage pool = poolInfo[0];
-        UserInfo storage user = userInfo[0][msg.sender];
-        require(user.amount >= _amount, "withdraw: not good");
-        require( (block.timestamp-user.firstStakeTime) > 30 days, "in 30 days");
-        // updatePool(0);
-        uint256 pending = pendingPeace(0, msg.sender);
-        if(pending > 0) {
-             pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
-        }
-        if(_amount > 0) {
-            user.amount = user.amount.sub(_amount);
-            pool.lpToken.safeTransfer(address(msg.sender), _amount);
-        }
-        user.stakeTime = block.timestamp;
-
-        // syrup.burn(msg.sender, _amount);
-        emit Withdraw(msg.sender, 0, _amount);
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
@@ -270,20 +220,22 @@ contract MasterChef is Ownable {
         emit EmergencyWithdraw(msg.sender, _pid, user.amount);
         user.amount = 0;
         user.stakeTime = 0;
+        user.nextHarvestUntil = 0;
+        pool.balance.sub(user.amount);
+        emit Withdraw(msg.sender, _pid, _amount);
     }
-
-    // Safe peace transfer function, just in case if rounding error causes pool to not have enough PEACEs.
-    // function safePeaceTransfer(address _to, uint256 _amount) internal {
-    //     syrup.safePeaceTransfer(_to, _amount);
-    // }
 
     // Update dev address by the previous dev.
     function dev(address _devaddr) public {
         require(msg.sender == devaddr, "devaddr: wut?");
+        require(msg.sender != address(this), "devaddr: wut?");
+        require(msg.sender != address(0), "devaddr: wut?");
         devaddr = _devaddr;
     }
     function setRewardAddr(address _rewardaddr) public {
         require(msg.sender == rewardaddr, "rewardaddr: wut?");
+        require(msg.sender != address(this), "devaddr: wut?");
+        require(msg.sender != address(0), "devaddr: wut?");
         rewardaddr = _rewardaddr;
     }
 }

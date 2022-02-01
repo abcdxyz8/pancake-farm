@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "migrate": "truffle migrate --network bscTestnet --reset",
+    "migrate": "truffle migrate --network bsc --reset",
     "compile": "truffle compile",
     "deploy" : "truffle deploy --network bscTestnet --reset",
     "verify" : "truffle run verify --network bscTestnet",

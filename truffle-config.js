@@ -21,15 +21,14 @@ module.exports = {
       confirmations: 10,
       timeoutBlocks: 200,
       skipDryRun: true,
-      from: '0xd9C057BF4A2FEAC8264f33aBbCecAA233A2f823c'
+      from: '0xB5F402fA52386bD88280c730C323BE178cc5c4b6'
     },
     bsc: {
       provider: () => new HDWalletProvider(mnemonic, `https://bsc-dataseed.binance.org`),
       network_id: 56,
       confirmations: 10,
       timeoutBlocks: 200,
-      skipDryRun: true,
-      from: '0xd9C057BF4A2FEAC8264f33aBbCecAA233A2f823c'
+      from: '0xB5F402fA52386bD88280c730C323BE178cc5c4b6'
     },
   },
 
