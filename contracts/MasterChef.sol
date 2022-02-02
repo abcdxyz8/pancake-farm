@@ -244,12 +244,13 @@ contract MasterChef is Ownable {
         uint256 emerAmount = user.amount.mul(99).div(100);
         pool.lpToken.safeTransfer(address(msg.sender), emerAmount);
         pool.lpToken.safeTransfer(devaddr, user.amount.sub(emerAmount));
-        emit EmergencyWithdraw(msg.sender, _pid, user.amount);
-        user.amount = 0;
+
         user.stakeTime = 0;
         user.nextHarvestUntil = 0;
         pool.balance = pool.balance.sub(user.amount);
-        emit Withdraw(msg.sender, _pid, user.amount);
+
+        user.amount = 0;
+        emit EmergencyWithdraw(msg.sender, _pid, user.amount);
     }
 
     // Update dev address by the previous dev.
