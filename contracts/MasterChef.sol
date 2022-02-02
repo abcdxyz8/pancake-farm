@@ -52,7 +52,7 @@ contract MasterChef is Ownable {
     // Info of each pool.
     struct PoolInfo {
         IBEP20 lpToken;           // Address of LP token contract.
-        uint256 monthlyRewardPercent;       // How many allocation points assigned to this pool. PEACEs to distribute per block.
+        uint256 apr;       // How many allocation points assigned to this pool. PEACEs to distribute per block.
         uint256 withdrawLockPeriod; // lock period for this pool
         uint256 balance;            // pool token balance, allow multiple pools with same token
        
@@ -87,24 +87,47 @@ contract MasterChef is Ownable {
         // staking pool
         poolInfo.push(PoolInfo({
             lpToken: PeaceToken,
-            monthlyRewardPercent: 10,
+            apr: 30,
             withdrawLockPeriod: 30 days,
+            balance: 0  
+        }));
+        poolInfo.push(PoolInfo({
+            lpToken: PeaceToken,
+            apr: 50,
+            withdrawLockPeriod: 60 days,
+            balance: 0  
+        }));
+        poolInfo.push(PoolInfo({
+            lpToken: PeaceToken,
+            apr: 80,
+            withdrawLockPeriod: 90 days,
+            balance: 0  
+        }));
+        poolInfo.push(PoolInfo({
+            lpToken: PeaceToken,
+            apr: 130,
+            withdrawLockPeriod: 180 days,
+            balance: 0  
+        }));
+        poolInfo.push(PoolInfo({
+            lpToken: PeaceToken,
+            apr: 250,
+            withdrawLockPeriod: 360 days,
             balance: 0  
         }));
 
     }
 
-    function updatemonthlyRewardPercent(uint256 _pid, uint256 _monthlyRewardPercent) public onlyOwner {
-        require(_monthlyRewardPercent>0, "monthlyRewardPercent set error");
-        require(_monthlyRewardPercent<100, "monthlyRewardPercent set error");
+    function updateapr(uint256 _pid, uint256 _apr) public onlyOwner {
+        require(_apr>0, "apr set error");
         PoolInfo storage pool = poolInfo[_pid];
-        pool.monthlyRewardPercent = _monthlyRewardPercent;
+        pool.apr = _apr;
     }
 
     function updatewithdrawLockPeriod(uint256 _pid, uint256 _withdrawLockPeriod) public onlyOwner {
         require(_withdrawLockPeriod>0, "withdrawLockPeriod set error");
         PoolInfo storage pool = poolInfo[_pid];
-        pool.withdrawLockPeriod = _withdrawLockPeriod * 1 days;
+        pool.withdrawLockPeriod = _withdrawLockPeriod;
     }
 
     function poolLength() external view returns (uint256) {
@@ -113,11 +136,11 @@ contract MasterChef is Ownable {
 
     // Add a new lp to the pool. Can only be called by the owner.
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-    function add(IBEP20 _lpToken, uint256 _monthlyRewardPercent, uint256 _withdrawLockPeriod) public onlyOwner {
+    function add(IBEP20 _lpToken, uint256 _apr, uint256 _withdrawLockPeriod) public onlyOwner {
 
         poolInfo.push(PoolInfo({
             lpToken: _lpToken,
-            monthlyRewardPercent: _monthlyRewardPercent,
+            apr: _apr,
             withdrawLockPeriod: _withdrawLockPeriod,
             balance: 0
         }));
@@ -143,7 +166,7 @@ contract MasterChef is Ownable {
 
     // Return reward multiplier over the given _from to _to block.
     function getMultiplier(uint256 _from, uint256 _to) public pure returns (uint256) {
-        return _to.sub(_from).mul(1e12).div(30 days);
+        return _to.sub(_from).mul(1e12).div(365 days);
     }
 
     // View function to see pending PEACEs on frontend.
@@ -151,7 +174,7 @@ contract MasterChef is Ownable {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 multiplier = getMultiplier(user.stakeTime, block.timestamp);
-        return user.amount.mul(multiplier).div(1e12).mul(pool.monthlyRewardPercent).div(100);
+        return user.amount.mul(multiplier).div(1e12).mul(pool.apr).div(100);
     }
 
 
@@ -173,7 +196,7 @@ contract MasterChef is Ownable {
             user.stakeTime = block.timestamp;
             user.nextHarvestUntil = user.stakeTime + pool.withdrawLockPeriod;
             
-            pool.balance.add(_amount);
+            pool.balance = pool.balance.add(_amount);
         }
         
         emit Deposit(msg.sender, _pid, _amount);
@@ -195,12 +218,14 @@ contract MasterChef is Ownable {
 
         uint256 pending = pendingPeace(_pid, msg.sender);
         if(pending > 0) {
+            uint256 feeAmount = pending.div(100);
+            pool.lpToken.safeTransferFrom(rewardaddr, devaddr, feeAmount);
             pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
         }
         if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
-            pool.balance.sub(_amount);
+            pool.balance = pool.balance.sub(_amount);
 
         }
 
@@ -216,12 +241,14 @@ contract MasterChef is Ownable {
     function emergencyWithdraw(uint256 _pid) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
-        pool.lpToken.safeTransfer(address(msg.sender), user.amount);
+        uint256 emerAmount = user.amount.mul(99).div(100);
+        pool.lpToken.safeTransfer(address(msg.sender), emerAmount);
+        pool.lpToken.safeTransfer(devaddr, user.amount.sub(emerAmount));
         emit EmergencyWithdraw(msg.sender, _pid, user.amount);
         user.amount = 0;
         user.stakeTime = 0;
         user.nextHarvestUntil = 0;
-        pool.balance.sub(user.amount);
+        pool.balance = pool.balance.sub(user.amount);
         emit Withdraw(msg.sender, _pid, user.amount);
     }
 
