@@ -187,7 +187,7 @@ contract MasterChef is Ownable {
         if (user.amount > 0) {
             uint256 pending = pendingPeace(_pid, msg.sender);
             if(pending > 0) {
-                pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
+                PeaceToken.safeTransferFrom(rewardaddr, msg.sender, pending);
             }
         }
         if (_amount > 0) {
@@ -219,8 +219,8 @@ contract MasterChef is Ownable {
         uint256 pending = pendingPeace(_pid, msg.sender);
         if(pending > 0) {
             uint256 feeAmount = pending.div(100);
-            pool.lpToken.safeTransferFrom(rewardaddr, devaddr, feeAmount);
-            pool.lpToken.safeTransferFrom(rewardaddr, msg.sender, pending);
+            PeaceToken.safeTransferFrom(rewardaddr, devaddr, feeAmount);
+            PeaceToken.safeTransferFrom(rewardaddr, msg.sender, pending);
         }
         if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
